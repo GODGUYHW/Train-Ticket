@@ -20,6 +20,7 @@ class TrainTicketSystem:
         # เก็บรายรับและเงินทอน
         self.revenue_list = []  # List to store total revenue from transactions
         self.change_list = []   # List to store change given to customers
+        self.ticket_count_list = []  # List to store the number of tickets per transaction
         self.total_payment = 0  # Track total amount paid
 
         # สร้างหน้าต่างหลักของโปรแกรม
@@ -50,29 +51,45 @@ class TrainTicketSystem:
         self.fare_label = tk.Label(self.root, text="ค่าโดยสาร: -")
         self.fare_label.grid(row=3, column=0, columnspan=2, padx=10, pady=5)
 
+        # เลือกจำนวนตั๋ว (จำกัดจำนวนสูงสุด 4 ใบ)
+        tk.Label(self.root, text="จำนวนตั๋ว:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        self.ticket_count_var = tk.IntVar(value=1)
+        
+        # Set validation to limit the Spinbox to a maximum of 4 tickets
+        self.ticket_count_spinbox = ttk.Spinbox(self.root, from_=1, to=4, textvariable=self.ticket_count_var, width=5, 
+                                                command=self.show_distance_and_fare, validate="key", validatecommand=(self.root.register(self.validate_ticket_count), '%P'))
+        self.ticket_count_spinbox.grid(row=4, column=1, padx=10, pady=5)
+
         # จำนวนเงินที่จ่าย
-        tk.Label(self.root, text="จำนวนเงินที่จ่าย:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(self.root, text="จำนวนเงินที่จ่าย:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
         self.payment_var = tk.StringVar()
         self.payment_entry = ttk.Entry(self.root, textvariable=self.payment_var)
-        self.payment_entry.grid(row=4, column=1, padx=10, pady=5)
+        self.payment_entry.grid(row=5, column=1, padx=10, pady=5)
 
         # แสดงยอดเงินที่ยังขาดอยู่
         self.remaining_label = tk.Label(self.root, text="ยอดที่ยังขาดอยู่: -")
-        self.remaining_label.grid(row=5, column=0, columnspan=2, padx=10, pady=5)
+        self.remaining_label.grid(row=6, column=0, columnspan=2, padx=10, pady=5)
 
         # แสดงสถานะการซื้อตั๋ว
         self.status_label = tk.Label(self.root, text="", fg="green")
-        self.status_label.grid(row=6, column=0, columnspan=2, padx=10, pady=5)
+        self.status_label.grid(row=7, column=0, columnspan=2, padx=10, pady=5)
 
         # ปุ่มซื้อตั๋ว
         self.buy_button = ttk.Button(self.root, text="ซื้อตั๋ว", command=self.buy_ticket)
-        self.buy_button.grid(row=7, column=0, columnspan=2, pady=10)
+        self.buy_button.grid(row=8, column=0, columnspan=2, pady=10)
 
         # ปุ่มดูประวัติ
         self.history_button = ttk.Button(self.root, text="ดูประวัติการซื้อตั๋ว", command=self.show_history)
-        self.history_button.grid(row=8, column=0, columnspan=2, pady=10)
+        self.history_button.grid(row=9, column=0, columnspan=2, pady=10)
 
         self.root.mainloop()
+
+    def validate_ticket_count(self, value):
+        """ Validate that ticket count doesn't exceed 4 and is a valid number """
+        if value.isdigit():
+            count = int(value)
+            return 1 <= count <= 4
+        return False
 
     def update_end_stations(self, event=None):
         start = self.start_station_var.get()
@@ -91,7 +108,7 @@ class TrainTicketSystem:
         if start and end:
             distance = self.distances.get((start, end)) or self.distances.get((end, start))
             if distance:
-                fare = distance * 2  # ค่าโดยสาร = ระยะทาง x 2 บาท
+                fare = distance * 2 * self.ticket_count_var.get()  # ค่าโดยสาร = ระยะทาง x 2 บาท x จำนวนตั๋ว
                 self.distance_label.config(text=f"ระยะทาง: {distance} กม.")
                 self.fare_label.config(text=f"ค่าโดยสาร: {fare} บาท")
             else:
@@ -100,9 +117,9 @@ class TrainTicketSystem:
 
     def get_ticket_price(self, start, end):
         if (start, end) in self.distances:
-            return self.distances[(start, end)] * 2  # ค่าโดยสาร = ระยะทาง x 2 บาท
+            return self.distances[(start, end)] * 2 * self.ticket_count_var.get()  # จำนวนตั๋ว * ค่าโดยสารต่อใบ
         elif (end, start) in self.distances:
-            return self.distances[(end, start)] * 2
+            return self.distances[(end, start)] * 2 * self.ticket_count_var.get()
         return 0
 
     def buy_ticket(self):
@@ -132,9 +149,10 @@ class TrainTicketSystem:
             # เก็บรายรับและเงินทอน
             self.revenue_list.append(price)
             self.change_list.append(change)
+            self.ticket_count_list.append(self.ticket_count_var.get())  # Save number of tickets
 
             # บันทึกข้อมูลประวัติการเดินทางลงในไฟล์ .txt
-            self.write_history_to_file(start, end, price, self.total_payment, change)
+            self.write_history_to_file(start, end, price, self.total_payment, change, self.ticket_count_var.get())
 
             # Update UI to show success status
             self.status_label.config(text="ซื้อตั๋วสำเร็จ!", fg="green")
@@ -142,9 +160,9 @@ class TrainTicketSystem:
             self.payment_var.set("")  # ล้างข้อมูลการจ่ายเงิน
             self.remaining_label.config(text="ยอดที่ยังขาดอยู่: -")  # Reset remaining label
 
-    def write_history_to_file(self, start, end, price, payment, change):
+    def write_history_to_file(self, start, end, price, payment, change, ticket_count):
         with open("history.txt", "a", encoding="utf-8") as file:
-            file.write(f"สถานีต้นทาง: {start}, สถานีปลายทาง: {end}, ราคา: {price} บาท, ชำระเงิน: {payment} บาท, ทอนเงิน: {change} บาท\n")
+            file.write(f"สถานีต้นทาง: {start}, สถานีปลายทาง: {end}, จำนวนตั๋ว: {ticket_count}, ราคา: {price} บาท, ชำระเงิน: {payment} บาท, ทอนเงิน: {change} บาท\n")
 
     def show_history(self):
         # Create a new window to show the history
@@ -156,9 +174,9 @@ class TrainTicketSystem:
         history_listbox.pack(padx=10, pady=10)
 
         # Populate the listbox with the history
-        for i, (route, revenue, change) in enumerate(zip(self.history, self.revenue_list, self.change_list)):
+        for i, (route, revenue, change, ticket_count) in enumerate(zip(self.history, self.revenue_list, self.change_list, self.ticket_count_list)):
             start, end = route
-            history_listbox.insert(tk.END, f"{i+1}. สถานีต้นทาง: {start}, สถานีปลายทาง: {end}, ราคา: {revenue} บาท, ทอนเงิน: {change} บาท")
+            history_listbox.insert(tk.END, f"{i+1}. สถานีต้นทาง: {start}, สถานีปลายทาง: {end}, จำนวนตั๋ว: {ticket_count}, ราคา: {revenue} บาท, ทอนเงิน: {change} บาท")
 
 if __name__ == "__main__":
     TrainTicketSystem()
