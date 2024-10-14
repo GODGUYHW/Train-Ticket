@@ -14,20 +14,19 @@ class TrainTicketSystem:
             ("สถานี B", "สถานี D"): 35,
         }
         
-        # เก็บสถิติของสถานีต้นทางและปลายทางเป็น tuple
-        self.history = []  # List to store (start_station, end_station) as tuples
+        # Store history as an empty tuple
+        self.history = ()  # Tuple to store (start_station, end_station, ticket_count, fare, payment, change)
         
-        # เก็บรายรับและเงินทอน
-        self.revenue_list = []  # List to store total revenue from transactions
-        self.change_list = []   # List to store change given to customers
-        self.ticket_count_list = []  # List to store the number of tickets per transaction
-        self.total_payment = 0  # Track total amount paid
-
-        # สร้างหน้าต่างหลักของโปรแกรม
+        # Initialize total payment and histories
+        self.total_payment = 0
+        self.income_history = []  # List to store income
+        self.change_history = []  # List to store change
+        
+        # Create the main window of the program
         self.root = tk.Tk()
         self.root.title("ระบบขายตั๋วรถไฟ")
 
-        # สถานีต้นทาง
+        # Start Station
         tk.Label(self.root, text="สถานีต้นทาง:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
         self.start_station_var = tk.StringVar()
         self.start_combobox = ttk.Combobox(self.root, textvariable=self.start_station_var)
@@ -35,7 +34,7 @@ class TrainTicketSystem:
         self.start_combobox.grid(row=0, column=1, padx=10, pady=5)
         self.start_combobox.bind("<<ComboboxSelected>>", self.update_end_stations)
 
-        # สถานีปลายทาง
+        # End Station
         tk.Label(self.root, text="สถานีปลายทาง:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
         self.end_station_var = tk.StringVar()
         self.end_combobox = ttk.Combobox(self.root, textvariable=self.end_station_var)
@@ -43,15 +42,15 @@ class TrainTicketSystem:
         self.end_combobox.grid(row=1, column=1, padx=10, pady=5)
         self.end_combobox.bind("<<ComboboxSelected>>", self.show_distance_and_fare)
 
-        # แสดงระยะทาง
+        # Show distance
         self.distance_label = tk.Label(self.root, text="ระยะทาง: -")
         self.distance_label.grid(row=2, column=0, columnspan=2, padx=10, pady=5)
 
-        # แสดงค่าโดยสาร
+        # Show fare
         self.fare_label = tk.Label(self.root, text="ค่าโดยสาร: -")
         self.fare_label.grid(row=3, column=0, columnspan=2, padx=10, pady=5)
 
-        # เลือกจำนวนตั๋ว (จำกัดจำนวนสูงสุด 4 ใบ)
+        # Select number of tickets (max 4)
         tk.Label(self.root, text="จำนวนตั๋ว:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
         self.ticket_count_var = tk.IntVar(value=1)
         
@@ -60,25 +59,25 @@ class TrainTicketSystem:
                                                 command=self.show_distance_and_fare, validate="key", validatecommand=(self.root.register(self.validate_ticket_count), '%P'))
         self.ticket_count_spinbox.grid(row=4, column=1, padx=10, pady=5)
 
-        # จำนวนเงินที่จ่าย
+        # Amount paid
         tk.Label(self.root, text="จำนวนเงินที่จ่าย:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
         self.payment_var = tk.StringVar()
         self.payment_entry = ttk.Entry(self.root, textvariable=self.payment_var)
         self.payment_entry.grid(row=5, column=1, padx=10, pady=5)
 
-        # แสดงยอดเงินที่ยังขาดอยู่
+        # Show remaining amount
         self.remaining_label = tk.Label(self.root, text="ยอดที่ยังขาดอยู่: -")
         self.remaining_label.grid(row=6, column=0, columnspan=2, padx=10, pady=5)
 
-        # แสดงสถานะการซื้อตั๋ว
+        # Show purchase status
         self.status_label = tk.Label(self.root, text="", fg="green")
         self.status_label.grid(row=7, column=0, columnspan=2, padx=10, pady=5)
 
-        # ปุ่มซื้อตั๋ว
+        # Buy ticket button
         self.buy_button = ttk.Button(self.root, text="ซื้อตั๋ว", command=self.buy_ticket)
         self.buy_button.grid(row=8, column=0, columnspan=2, pady=10)
 
-        # ปุ่มดูประวัติ
+        # Show history button
         self.history_button = ttk.Button(self.root, text="ดูประวัติการซื้อตั๋ว", command=self.show_history)
         self.history_button.grid(row=9, column=0, columnspan=2, pady=10)
 
@@ -101,6 +100,7 @@ class TrainTicketSystem:
             self.fare_label.config(text="ค่าโดยสาร: -")
             self.remaining_label.config(text="ยอดที่ยังขาดอยู่: -")
             self.status_label.config(text="")  # Reset status label
+            self.total_payment = 0  # Reset total payment when changing stations
 
     def show_distance_and_fare(self, event=None):
         start = self.start_station_var.get()
@@ -111,6 +111,7 @@ class TrainTicketSystem:
                 fare = distance * 2 * self.ticket_count_var.get()  # ค่าโดยสาร = ระยะทาง x 2 บาท x จำนวนตั๋ว
                 self.distance_label.config(text=f"ระยะทาง: {distance} กม.")
                 self.fare_label.config(text=f"ค่าโดยสาร: {fare} บาท")
+                self.status_label.config(text="")  # Clear status label when distance or fare changes
             else:
                 self.distance_label.config(text="ระยะทาง: ไม่พบเส้นทาง")
                 self.fare_label.config(text="ค่าโดยสาร: -")
@@ -127,56 +128,76 @@ class TrainTicketSystem:
         end = self.end_station_var.get()
         payment = self.payment_var.get()
 
-        # ตรวจสอบการกรอกข้อมูล
+        # Validate input
         if not payment.isdigit():
             messagebox.showerror("ข้อผิดพลาด", "กรุณาใส่จำนวนเงินที่เป็นตัวเลข")
             return
 
         payment = int(payment)
-        self.total_payment += payment  # Add to the total payment
         price = self.get_ticket_price(start, end)
 
         if price == 0:
             messagebox.showerror("ข้อผิดพลาด", f"ไม่มีเส้นทางจาก {start} ไปยัง {end}")
-        elif self.total_payment < price:
+            return
+
+        # Update total payment
+        self.total_payment += payment
+        
+        # Check if total payment is less than required
+        if self.total_payment < price:
             remaining = price - self.total_payment
             self.remaining_label.config(text=f"ยอดที่ยังขาดอยู่: {remaining} บาท")
             messagebox.showinfo("เพิ่มเงิน", f"คุณต้องเพิ่มอีก {remaining} บาท")
-        else:
-            change = self.total_payment - price
-            # เก็บสถิติการเดินทาง
-            self.history.append((start, end))  # Store (start_station, end_station) as a tuple
-            # เก็บรายรับและเงินทอน
-            self.revenue_list.append(price)
-            self.change_list.append(change)
-            self.ticket_count_list.append(self.ticket_count_var.get())  # Save number of tickets
+            self.payment_var.set("")  # Clear the payment field for new entry
+            return
 
-            # บันทึกข้อมูลประวัติการเดินทางลงในไฟล์ .txt
-            self.write_history_to_file(start, end, price, self.total_payment, change, self.ticket_count_var.get())
+        # If total payment exceeds price, calculate change
+        change = self.total_payment - price
+        
+        # Add to income and change histories
+        self.income_history.append(price)
+        self.change_history.append(change)
 
-            # Update UI to show success status
-            self.status_label.config(text="ซื้อตั๋วสำเร็จ!", fg="green")
-            self.total_payment = 0  # Reset total payment
-            self.payment_var.set("")  # ล้างข้อมูลการจ่ายเงิน
-            self.remaining_label.config(text="ยอดที่ยังขาดอยู่: -")  # Reset remaining label
+        # Create a new history tuple that includes the new transaction
+        self.history += ((start, end, self.ticket_count_var.get(), price, self.total_payment, change),)
 
-    def write_history_to_file(self, start, end, price, payment, change, ticket_count):
-        with open("history.txt", "a", encoding="utf-8") as file:
-            file.write(f"สถานีต้นทาง: {start}, สถานีปลายทาง: {end}, จำนวนตั๋ว: {ticket_count}, ราคา: {price} บาท, ชำระเงิน: {payment} บาท, ทอนเงิน: {change} บาท\n")
+        # Save the transaction to the history file
+        self.write_history_to_file(start, end, price, self.total_payment, change, self.ticket_count_var.get())
+
+        # Update UI to show success status
+        self.status_label.config(text="ซื้อตั๋วสำเร็จ!", fg="green")
+        self.remaining_label.config(text="ยอดที่ยังขาดอยู่: -")
+        messagebox.showinfo("การชำระเงิน", f"คุณได้ทอนเงิน {change} บาท")
+
+        # Reset total payment after successful transaction
+        self.total_payment = 0
+        self.payment_var.set("")  # Clear the payment field
+
+    def write_history_to_file(self, start, end, fare, payment, change, ticket_count):
+        with open("ticket_history.txt", "a", encoding="utf-8") as file:
+            file.write(f"สถานีต้นทาง: {start}, สถานีปลายทาง: {end}, จำนวนตั๋ว: {ticket_count}, ราคา: {fare} บาท, ชำระเงิน: {payment} บาท, ทอนเงิน: {change} บาท\n")
 
     def show_history(self):
-        # Create a new window to show the history
         history_window = tk.Toplevel(self.root)
         history_window.title("ประวัติการซื้อตั๋ว")
+        
+        # If history is empty
+        if not self.history:
+            messagebox.showinfo("ประวัติการซื้อตั๋ว", "ยังไม่มีประวัติการซื้อตั๋ว")
+            return
+        
+        # Display history
+        history_text = "\n".join([
+            f"สถานีต้นทาง: {entry[0]}, สถานีปลายทาง: {entry[1]}, จำนวนตั๋ว: {entry[2]}, ราคา: {entry[3]} บาท, ชำระเงิน: {entry[4]} บาท, ทอนเงิน: {entry[5]} บาท"
+            for entry in self.history
+        ])
+        
+        history_label = tk.Label(history_window, text=history_text, justify="left")
+        history_label.pack(padx=10, pady=10)
 
-        # Add a listbox to show history details
-        history_listbox = tk.Listbox(history_window, width=80, height=20)
-        history_listbox.pack(padx=10, pady=10)
-
-        # Populate the listbox with the history
-        for i, (route, revenue, change, ticket_count) in enumerate(zip(self.history, self.revenue_list, self.change_list, self.ticket_count_list)):
-            start, end = route
-            history_listbox.insert(tk.END, f"{i+1}. สถานีต้นทาง: {start}, สถานีปลายทาง: {end}, จำนวนตั๋ว: {ticket_count}, ราคา: {revenue} บาท, ทอนเงิน: {change} บาท")
+        # Button to close the history window
+        close_button = ttk.Button(history_window, text="ปิด", command=history_window.destroy)
+        close_button.pack(pady=5)
 
 if __name__ == "__main__":
     TrainTicketSystem()
